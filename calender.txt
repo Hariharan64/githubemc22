@@ -1,0 +1,297 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp">
+
+    <GridView
+        android:id="@+id/calendarGridView"
+        android:layout_width="wrap_content"
+        android:layout_height="369dp"
+        android:gravity="center"
+        android:horizontalSpacing="2dp"
+        android:numColumns="7"
+        android:stretchMode="columnWidth"
+        android:verticalSpacing="2dp" />
+
+    <Button
+        android:id="@+id/btnPunchIn"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/calendarGridView"
+        android:layout_marginTop="20dp"
+        android:text="Punch In" />
+
+    <TextView
+        android:id="@+id/tvPunchInTime"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/btnPunchIn"
+        android:layout_marginTop="20dp"
+        android:text="Punch-in Time: Not Recorded"
+        android:textSize="18sp" />
+
+</RelativeLayout>
+
+_________________________________________________________
+package com.example.qrstaff;
+
+
+import android.os.Bundle;
+import android.view.View;
+import android.widget.AdapterView;
+import android.widget.Button;
+import android.widget.GridView;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import androidx.appcompat.app.AppCompatActivity;
+
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
+
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Locale;
+
+public class MainActivity extends AppCompatActivity {
+
+    private GridView calendarGridView;
+    private Button btnPunchIn;
+    private TextView tvPunchInTime;
+    private CalendarAdapter calendarAdapter;
+    private ArrayList<String> dates;
+    private DatabaseReference attendanceRef;
+    private String selectedDate;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+
+        calendarGridView = findViewById(R.id.calendarGridView);
+        btnPunchIn = findViewById(R.id.btnPunchIn);
+        tvPunchInTime = findViewById(R.id.tvPunchInTime);
+
+        // Initialize Firebase Database
+        FirebaseDatabase database = FirebaseDatabase.getInstance();
+        attendanceRef = database.getReference("attendance");
+
+        // Generate dates for the current month
+        dates = new ArrayList<>();
+        Calendar calendar = Calendar.getInstance();
+        calendar.set(Calendar.DAY_OF_MONTH, 1);
+        int daysInMonth = calendar.getActualMaximum(Calendar.DAY_OF_MONTH);
+
+        for (int i = 1; i <= daysInMonth; i++) {
+            dates.add(String.valueOf(i));
+        }
+
+        calendarAdapter = new CalendarAdapter(this, dates);
+        calendarGridView.setAdapter(calendarAdapter);
+
+        // Handle date selection
+        calendarGridView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                selectedDate = dates.get(position);
+                calendarAdapter.setSelectedPosition(position);
+            }
+        });
+
+        // Handle punch-in button click
+        btnPunchIn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (selectedDate != null) {
+                    String currentTime = new SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Calendar.getInstance().getTime());
+                    tvPunchInTime.setText("Punch-in Time: " + currentTime);
+                    saveAttendance(selectedDate, currentTime);
+                } else {
+                    Toast.makeText(MainActivity.this, "Please select a date first.", Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
+    }
+
+    private void saveAttendance(String date, String time) {
+        attendanceRef.child(date).setValue(time)
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful()) {
+                        Toast.makeText(MainActivity.this, "Attendance Recorded", Toast.LENGTH_SHORT).show();
+                    } else {
+                        Toast.makeText(MainActivity.this, "Failed to Record Attendance", Toast.LENGTH_SHORT).show();
+                    }
+                });
+    }
+}
+__________________________________________________
+calender adapter
+package com.example.qrstaff;
+
+import android.content.Context;
+import android.graphics.Color;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.BaseAdapter;
+import android.widget.TextView;
+
+import java.util.ArrayList;
+
+public class CalendarAdapter extends BaseAdapter {
+
+    private Context context;
+    private ArrayList<String> dates;
+    private LayoutInflater inflater;
+    private int selectedPosition = -1;
+
+    public CalendarAdapter(Context context, ArrayList<String> dates) {
+        this.context = context;
+        this.dates = dates;
+        this.inflater = LayoutInflater.from(context);
+    }
+
+    @Override
+    public int getCount() {
+        return dates.size();
+    }
+
+    @Override
+    public Object getItem(int position) {
+        return dates.get(position);
+    }
+
+    @Override
+    public long getItemId(int position) {
+        return position;
+    }
+
+    @Override
+    public View getView(int position, View convertView, ViewGroup parent) {
+        if (convertView == null) {
+            convertView = inflater.inflate(android.R.layout.simple_list_item_1, parent, false);
+        }
+
+        TextView dateTextView = (TextView) convertView.findViewById(android.R.id.text1);
+        dateTextView.setText(dates.get(position));
+        dateTextView.setTextColor(Color.BLACK);
+        dateTextView.setPadding(8, 8, 8, 8);
+        dateTextView.setGravity(View.TEXT_ALIGNMENT_CENTER);
+
+        // Highlight the selected date
+        if (position == selectedPosition) {
+            convertView.setBackgroundColor(Color.GREEN);
+        } else {
+            convertView.setBackgroundColor(Color.TRANSPARENT);
+        }
+
+        return convertView;
+    }
+
+    public void setSelectedPosition(int position) {
+        selectedPosition = position;
+        notifyDataSetChanged();
+    }
+}
+_______________________________________________________________
+
+
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="8dp"
+
+    android:layout_marginBottom="8dp">
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <!-- Date and Day -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/date"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="1"
+                android:textColor="@color/colorPrimaryDark"
+                android:textSize="24sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/day"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="THU"
+                android:textColor="@color/colorSecondary"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- Punch In/Out and Overall Time -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginStart="36dp">
+
+            <TextView
+                android:id="@+id/punch_in_time"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Punch In: 09:26 am"
+
+                android:textColor="@android:color/black"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/punch_out_time"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Punch Out: 05:44 pm"
+                android:textColor="@android:color/black"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/overall_time"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Overall: 8:18 hr"
+                android:textColor="@android:color/black"
+                android:textSize="14sp" />
+        </LinearLayout>
+
+        <!-- Attendance Status -->
+        <TextView
+            android:id="@+id/attendance_status"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
+            android:text="P"
+            android:textColor="@android:color/white"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:background="@color/colorPrimary"
+            android:padding="4dp"/>
+    </RelativeLayout>
+
+    <!-- Punch In Remarks -->
+    <TextView
+        android:id="@+id/punch_in_remarks"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Punch In Remarks: in"
+        android:textColor="@android:color/darker_gray"
+        android:textSize="14sp" />
+
+</LinearLayout>
+
+

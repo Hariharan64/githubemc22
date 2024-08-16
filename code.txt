@@ -1,0 +1,1 @@
+admin add user name , batch number. Course name to store realtiime firebase and retrieve in realtime user storedata user profile Activity name to replace in android studio java step by step full code in xml

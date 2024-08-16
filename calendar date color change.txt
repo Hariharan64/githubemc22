@@ -1,0 +1,409 @@
+Attendance Punchin sucess full date color change
+
+
+package com.example.qrstaff;
+
+import android.annotation.SuppressLint;
+import android.content.Intent;
+import android.os.Bundle;
+import android.widget.Button;
+import android.widget.GridView;
+import android.widget.Toast;
+
+import androidx.appcompat.app.AppCompatActivity;
+
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
+
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.Locale;
+
+public class AttendanceActivity extends AppCompatActivity {
+
+    private GridView gridViewCalendar;
+    private Button punchInButton, punchOutButton;
+    private DatabaseReference databaseReference;
+    private String selectedDate;
+    private ArrayList<String> dates;
+    private CalendarAdapter calendarAdapter;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_attendance);
+
+        // Initialize views
+        gridViewCalendar = findViewById(R.id.gridViewCalendar);
+        punchInButton = findViewById(R.id.punchInButton);
+        punchOutButton = findViewById(R.id.punchOutButton);
+
+        // Initialize Firebase reference
+        databaseReference = FirebaseDatabase.getInstance().getReference("attendance");
+
+        // Initialize calendar dates
+        dates = new ArrayList<>();
+        // Populate dates with the relevant month's dates (this can be dynamically generated)
+        populateCalendarDates();
+
+        // Set calendar adapter
+        calendarAdapter = new CalendarAdapter(this, dates);
+        gridViewCalendar.setAdapter(calendarAdapter);
+
+        // Calendar item click listener
+        gridViewCalendar.setOnItemClickListener((parent, view, position, id) -> {
+            selectedDate = dates.get(position);
+            calendarAdapter.setSelectedDate(selectedDate);
+        });
+
+        // Punch In button click event
+        punchInButton.setOnClickListener(v -> scanQRCode(true));
+
+        // Punch Out button click event
+        punchOutButton.setOnClickListener(v -> scanQRCode(false));
+    }
+
+    // Method to scan QR code
+    private void scanQRCode(boolean isPunchIn) {
+        Intent intent = new Intent(this, QRCodeScannerActivity.class);
+        intent.putExtra("isPunchIn", isPunchIn);
+        startActivityForResult(intent, 101);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == 101 && resultCode == RESULT_OK) {
+            boolean isPunchIn = data.getBooleanExtra("isPunchIn", true);
+            recordPunch(isPunchIn);
+        }
+    }
+
+    // Record punch-in or punch-out
+    private void recordPunch(boolean isPunchIn) {
+        // Automatically select today's date when punching in
+        if (isPunchIn) {
+            selectedDate = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new Date());
+            calendarAdapter.setSelectedDate(selectedDate);
+        }
+
+        if (selectedDate == null) {
+            Toast.makeText(this, "Please select a date first!", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        String currentTime = new SimpleDateFormat("hh:mm a", Locale.getDefault()).format(new Date());
+        DatabaseReference dateRef = databaseReference.child(selectedDate);
+
+        if (isPunchIn) {
+            dateRef.child("punchInTime").setValue(currentTime);
+            Toast.makeText(this, "Punch In Recorded", Toast.LENGTH_SHORT).show();
+            // Highlight the selected date in green
+            calendarAdapter.setHighlightedDate(selectedDate);
+        } else {
+            dateRef.child("punchOutTime").setValue(currentTime);
+            calculateTotalTime(dateRef);
+            Toast.makeText(this, "Punch Out Recorded", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    // Calculate total working time logic
+    private void calculateTotalTime(DatabaseReference dateRef) {
+        // Add logic to calculate and store total working time
+    }
+
+    // Method to populate dates for the calendar (can be dynamically generated)
+    @SuppressLint("DefaultLocale")
+    private void populateCalendarDates() {
+        // Example: Populating dates for August 2024
+        for (int i = 1; i <= 31; i++) {
+            dates.add(String.format("2024-08-%02d", i));
+        }
+    }
+}
+____________________________________________________________________________________
+
+package com.example.qrstaff;
+
+import android.content.Context;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.BaseAdapter;
+import android.widget.TextView;
+
+import androidx.core.content.ContextCompat;
+
+import java.util.ArrayList;
+
+public class CalendarAdapter extends BaseAdapter {
+
+    private Context context;
+    private ArrayList<String> dates;
+    private String selectedDate;
+    private String highlightedDate;
+
+    public CalendarAdapter(Context context, ArrayList<String> dates) {
+        this.context = context;
+        this.dates = dates;
+    }
+
+    @Override
+    public int getCount() {
+        return dates.size();
+    }
+
+    @Override
+    public Object getItem(int position) {
+        return dates.get(position);
+    }
+
+    @Override
+    public long getItemId(int position) {
+        return position;
+    }
+
+    @Override
+    public View getView(int position, View convertView, ViewGroup parent) {
+        if (convertView == null) {
+            convertView = LayoutInflater.from(context).inflate(R.layout.calendar_item, parent, false);
+        }
+
+        TextView dateText = convertView.findViewById(R.id.dateText);
+        String date = dates.get(position);
+        dateText.setText(date.split("-")[2]); // Show only the day part (e.g., "01")
+
+        // Highlight the selected date (blue) and punch-in date (green)
+        if (date.equals(selectedDate)) {
+            dateText.setBackgroundColor(ContextCompat.getColor(context, R.color.blue));
+        } else if (date.equals(highlightedDate)) {
+            dateText.setBackgroundColor(ContextCompat.getColor(context, R.color.green));
+        } else {
+            dateText.setBackgroundColor(ContextCompat.getColor(context, android.R.color.transparent));
+        }
+
+        return convertView;
+    }
+
+    public void setSelectedDate(String selectedDate) {
+        this.selectedDate = selectedDate;
+        notifyDataSetChanged();
+    }
+
+    public void setHighlightedDate(String highlightedDate) {
+        this.highlightedDate = highlightedDate;
+        notifyDataSetChanged();
+    }
+}
+
+______________________________________________________________________________________________
+
+
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!-- GridView Calendar -->
+    <GridView
+        android:id="@+id/gridViewCalendar"
+        android:layout_width="match_parent"
+        android:layout_height="600dp"
+        android:numColumns="7"
+        android:verticalSpacing="8dp"
+        android:horizontalSpacing="8dp"
+        android:stretchMode="columnWidth"
+        android:gravity="center"
+        android:padding="8dp" />
+
+    <!-- Punch In Button -->
+    <Button
+        android:id="@+id/punchInButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/gridViewCalendar"
+        android:layout_marginTop="16dp"
+        android:text="Punch In" />
+
+    <!-- Punch Out Button -->
+    <Button
+        android:id="@+id/punchOutButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/punchInButton"
+        android:layout_marginTop="8dp"
+        android:text="Punch Out" />
+
+</RelativeLayout>
+________________________________________________________________________________
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <com.journeyapps.barcodescanner.CompoundBarcodeView
+        android:id="@+id/barcode_scanner"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+</RelativeLayout>
+__________________________________________________________________________________
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:padding="8dp">
+
+    <TextView
+        android:id="@+id/dateText"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:textSize="16sp"
+        android:textColor="@android:color/black"
+        android:background="?android:attr/selectableItemBackground"
+        android:padding="8dp" />
+</RelativeLayout>
+_______________________________________________________________________________________
+
+package com.example.qrstaff;
+
+import android.content.Context;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.BaseAdapter;
+import android.widget.TextView;
+
+import androidx.core.content.ContextCompat;
+
+import java.util.ArrayList;
+
+public class CalendarAdapter extends BaseAdapter {
+
+    private Context context;
+    private ArrayList<String> dates;
+    private String selectedDate;
+    private String highlightedDate;
+
+    public CalendarAdapter(Context context, ArrayList<String> dates) {
+        this.context = context;
+        this.dates = dates;
+    }
+
+    @Override
+    public int getCount() {
+        return dates.size();
+    }
+
+    @Override
+    public Object getItem(int position) {
+        return dates.get(position);
+    }
+
+    @Override
+    public long getItemId(int position) {
+        return position;
+    }
+
+    @Override
+    public View getView(int position, View convertView, ViewGroup parent) {
+        if (convertView == null) {
+            convertView = LayoutInflater.from(context).inflate(R.layout.calendar_item, parent, false);
+        }
+
+        TextView dateText = convertView.findViewById(R.id.dateText);
+        String date = dates.get(position);
+        dateText.setText(date.split("-")[2]); // Show only the day part (e.g., "01")
+
+        // Highlight the selected date (blue) and punch-in date (green)
+        if (date.equals(selectedDate)) {
+            dateText.setBackgroundColor(ContextCompat.getColor(context, R.color.blue));
+        } else if (date.equals(highlightedDate)) {
+            dateText.setBackgroundColor(ContextCompat.getColor(context, R.color.green));
+        } else {
+            dateText.setBackgroundColor(ContextCompat.getColor(context, android.R.color.transparent));
+        }
+
+        return convertView;
+    }
+
+    public void setSelectedDate(String selectedDate) {
+        this.selectedDate = selectedDate;
+        notifyDataSetChanged();
+    }
+
+    public void setHighlightedDate(String highlightedDate) {
+        this.highlightedDate = highlightedDate;
+        notifyDataSetChanged();
+    }
+}
+_____________________________________________________________________
+
+package com.example.qrstaff;
+
+import android.annotation.SuppressLint;
+import android.app.Activity;
+import android.content.Intent;
+import android.os.Bundle;
+import com.journeyapps.barcodescanner.CompoundBarcodeView;
+import com.journeyapps.barcodescanner.BarcodeCallback;
+import com.journeyapps.barcodescanner.BarcodeResult;
+
+public class QRCodeScannerActivity extends Activity {
+
+    private CompoundBarcodeView barcodeView;
+
+    @SuppressLint("MissingInflatedId")
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_qrcode_scanner);
+
+        barcodeView = findViewById(R.id.barcode_scanner);
+        barcodeView.decodeContinuous(new BarcodeCallback() {
+            @Override
+            public void barcodeResult(BarcodeResult result) {
+                if (result != null) {
+                    handleScanResult();
+                }
+            }
+        });
+    }
+
+    private void handleScanResult() {
+        boolean isPunchIn = getIntent().getBooleanExtra("isPunchIn", true);
+        Intent resultIntent = new Intent();
+        resultIntent.putExtra("isPunchIn", isPunchIn);
+        setResult(RESULT_OK, resultIntent);
+        finish();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        barcodeView.resume();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        barcodeView.pause();
+    }
+}
+
+
+___________________________
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <com.journeyapps.barcodescanner.CompoundBarcodeView
+        android:id="@+id/barcode_scanner"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+</RelativeLayout>
+

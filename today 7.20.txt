@@ -1,0 +1,256 @@
+today code
+
+plugins {
+    id 'com.android.application'
+    id 'com.google.gms.google-services'
+
+
+}
+
+android {
+    namespace 'com.example.qrstaff'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.example.qrstaff"
+        minSdk 23
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildTypes {
+        release {
+
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
+
+dependencies {
+
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'com.google.android.material:material:1.12.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+    implementation 'com.google.firebase:firebase-database:21.0.0'
+    implementation 'com.google.firebase:firebase-auth:23.0.0'
+    implementation 'androidx.bluetooth:bluetooth:1.0.0-alpha02'
+    implementation 'com.google.firebase:firebase-storage:21.0.0'
+    testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.6.1'
+
+    implementation platform('com.google.firebase:firebase-bom:33.1.2')
+    implementation 'com.google.firebase:firebase-analytics'
+
+
+
+    // Image loading library
+    implementation 'com.github.bumptech.glide:glide:4.15.1' // Check for the latest version
+
+
+
+
+    implementation 'com.google.zxing:core:3.4.1'
+    implementation 'com.journeyapps:zxing-android-embedded:4.3.0'
+
+
+
+
+
+        implementation 'com.google.firebase:firebase-database:21.0.0'
+
+    implementation 'com.applandeo:material-calendar-view:1.9.2'
+        implementation 'com.journeyapps:zxing-android-embedded:4.3.0'
+
+    implementation 'com.prolificinteractive:material-calendarview:1.4.3'
+
+
+
+
+
+
+
+
+
+
+
+    implementation 'androidx.recyclerview:recyclerview:1.3.2'
+
+
+
+
+
+
+
+}
+______________________________________________________________________
+
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="#4CAF50" /> <!-- Green color -->
+    <corners android:radius="50dp" />
+</shape>
+-----------------------------------------------------------------
+
+package com.example.qrstaff;
+
+import android.annotation.SuppressLint;
+import android.content.Intent;
+import android.os.Bundle;
+import android.widget.Button;
+import android.widget.Toast;
+
+import androidx.annotation.Nullable;
+import androidx.appcompat.app.AppCompatActivity;
+
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
+import com.google.zxing.integration.android.IntentIntegrator;
+import com.google.zxing.integration.android.IntentResult;
+import com.prolificinteractive.materialcalendarview.CalendarDay;
+import com.prolificinteractive.materialcalendarview.MaterialCalendarView;
+
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
+
+public class HomeActivity extends AppCompatActivity {
+
+    private MaterialCalendarView calendarView;
+    private Button scanQrButton;
+    private DatabaseReference databaseReference;
+    private String punchInTime, punchOutTime;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_home);
+
+        // Initialize Firebase Database
+        databaseReference = FirebaseDatabase.getInstance().getReference("attendance");
+
+        calendarView = findViewById(R.id.calendarView);
+        scanQrButton = findViewById(R.id.scanQrButton);
+
+        scanQrButton.setOnClickListener(v -> initiateScan());
+
+        // Set today's date as selected in the calendar
+        calendarView.setSelectedDate(CalendarDay.today());
+    }
+
+    private void initiateScan() {
+        IntentIntegrator integrator = new IntentIntegrator(this);
+        integrator.setDesiredBarcodeFormats(IntentIntegrator.QR_CODE);
+        integrator.setPrompt("Scan a QR Code");
+        integrator.setCameraId(0);
+        integrator.setBeepEnabled(true);
+        integrator.setBarcodeImageEnabled(true);
+        integrator.initiateScan();
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        IntentResult result = IntentIntegrator.parseActivityResult(requestCode, resultCode, data);
+        if (result != null) {
+            if (result.getContents() == null) {
+                Toast.makeText(this, "Cancelled", Toast.LENGTH_LONG).show();
+            } else {
+                // Handle QR code scan result
+                handleQrCodeResult(result.getContents());
+            }
+        }
+    }
+
+    private void handleQrCodeResult(String qrCodeContent) {
+        // Simulate checking the QR code content for a valid user
+        if (qrCodeContent.equals("https://quadcrag.com")) {
+            punchInTime = getCurrentTime();
+            Toast.makeText(this, "Punched In at " + punchInTime, Toast.LENGTH_SHORT).show();
+
+            // Save punch-in time to Firebase
+            saveToFirebase("in", punchInTime);
+
+            // Highlight the current date in green
+            highlightSelectedDate();
+
+        } else {
+            Toast.makeText(this, "Invalid QR Code", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private String getCurrentTime() {
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
+        return sdf.format(new Date());
+    }
+
+    private void saveToFirebase(String status, String punchInTime) {
+        String date = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new Date());
+        Map<String, String> attendanceData = new HashMap<>();
+        attendanceData.put("status", status);
+        attendanceData.put("punchInTime", punchInTime);
+
+        // Save data under the current date in Firebase
+        databaseReference.child(date).setValue(attendanceData)
+                .addOnSuccessListener(aVoid -> Toast.makeText(HomeActivity.this, "Data Saved", Toast.LENGTH_SHORT).show())
+                .addOnFailureListener(e -> Toast.makeText(HomeActivity.this, "Failed to Save Data", Toast.LENGTH_SHORT).show());
+    }
+
+    private void highlightSelectedDate() {
+        calendarView.addDecorator(new DayViewDecorator() {
+            @Override
+            public boolean shouldDecorate(CalendarDay day) {
+                // Highlight the current date
+                return day.equals(CalendarDay.today());
+            }
+
+            @SuppressLint("UseCompatLoadingForDrawables")
+            @Override
+            public void decorate(DayViewFacade view) {
+                // Change the background to green for the selected date
+                view.setBackgroundDrawable(getResources().getDrawable(R.drawable.green_circles));
+            }
+        });
+    }
+}
+----------------------------------------------------------------------------------
+
+
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    tools:context=".HomeActivity">
+
+    <!-- Calendar View -->
+    <CalendarView
+        android:id="@+id/calendarView"
+        android:layout_width="match_parent"
+
+        android:layout_height="wrap_content"
+        android:layout_marginTop="20dp"
+        app:mcv_showOtherDates="all"
+         />
+
+    <!-- Scan QR Code Button -->
+    <Button
+        android:id="@+id/scanQrButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Scan QR Code"
+        android:layout_below="@id/calendarView"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="20dp" />
+
+</RelativeLayout>
